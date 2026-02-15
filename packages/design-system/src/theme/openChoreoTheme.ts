@@ -1,6 +1,5 @@
 import { createUnifiedTheme, createBaseThemeOptions } from '@backstage/theme';
 
-
 // Color constants for reuse - Modern & Minimal palette
 const colors = {
   primary: {
@@ -46,11 +45,21 @@ const colors = {
   },
 };
 
-
+const fontFamily = [
+  '-apple-system',
+  'BlinkMacSystemFont',
+  '"Segoe UI"',
+  '"Noto Sans"',
+  'Helvetica',
+  'Arial',
+  'sans-serif',
+  '"Apple Color Emoji"',
+  '"Segoe UI Emoji"',
+].join(', ');
 
 export const openChoreoTheme = createUnifiedTheme({
   ...createBaseThemeOptions({
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+    fontFamily,
     palette: {
       ...colors,
       // Backstage-specific palette additions
@@ -118,8 +127,7 @@ export const openChoreoTheme = createUnifiedTheme({
       },
     },
     typography: {
-      fontFamily:
-        '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+      fontFamily,
       htmlFontSize: 15,
       h1: {
         fontSize: 38, // Slightly smaller for better proportions
@@ -191,10 +199,8 @@ export const openChoreoTheme = createUnifiedTheme({
     },
     MuiCssBaseline: {
       styleOverrides: {
-
         'body, html': {
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji" !important',
+          fontFamily: `${fontFamily} !important`,
         },
         // Sidebar divider opacity - use aria-label selector to work in both dev and production
         'nav[aria-label="sidebar nav"] hr': {
@@ -361,7 +367,7 @@ export const openChoreoTheme = createUnifiedTheme({
       styleOverrides: {
         root: {
           backgroundColor: colors.secondary.light,
-          border: `1px solid transparent`,
+          border: `1px solid ${colors.grey[300]}`,
           transition: 'all 0.3s',
           borderRadius: 8,
           padding: '2px 4px',
@@ -377,10 +383,11 @@ export const openChoreoTheme = createUnifiedTheme({
             display: 'none',
           },
           '&:hover:not(.Mui-focused)': {
-            borderColor: colors.indigo[200],
+            borderColor: colors.primary.light,
           },
           '&.Mui-focused': {
-            borderColor: colors.primary.light,
+            borderColor: colors.primary.main,
+            borderWidth: 2,
           },
         },
       },
@@ -523,5 +530,26 @@ export const openChoreoTheme = createUnifiedTheme({
         },
       },
     },
+    // Scaffolder stepper form width constraint.
+    // Cast needed because the BackstageTemplateStepper type augmentation lives in
+    // @backstage/plugin-scaffolder-react/alpha, which the design-system package
+    // does not depend on. Adding it as a dependency would couple a low-level
+    // design package to a specific plugin.
+    ...({
+      BackstageTemplateStepper: {
+        styleOverrides: {
+          formWrapper: {
+            maxWidth: 900,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          },
+          footer: {
+            maxWidth: 900,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          },
+        },
+      },
+    } as any),
   },
 });
