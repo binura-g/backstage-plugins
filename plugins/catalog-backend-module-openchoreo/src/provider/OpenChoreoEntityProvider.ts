@@ -37,6 +37,7 @@ type ModelsTrait = OpenChoreoComponents['schemas']['TraitResponse'];
 interface WorkloadEndpoint {
   type: string;
   port: number;
+  visibility: string;
   schema?: {
     content?: string;
   };
@@ -383,6 +384,14 @@ export class OpenChoreoEntityProvider implements EntityProvider {
           );
           allEntities.push(...systemEntities);
 
+          // Deduplicate deployment pipelines across projects:
+          // Multiple projects may reference the same pipeline (same kind/namespace/name),
+          // so we collect all projectRefs into a single entity per pipeline.
+          const pipelineMap = new Map<
+            string,
+            DeploymentPipelineEntityV1alpha1
+          >();
+
           // Get deployment pipelines and components for each project
           for (const project of projects) {
             // Fetch deployment pipeline for the project
@@ -409,15 +418,33 @@ export class OpenChoreoEntityProvider implements EntityProvider {
                 pipelineData?.success &&
                 pipelineData?.data
               ) {
-                const pipelineEntity = this.translateDeploymentPipelineToEntity(
-                  pipelineData.data as ModelsDeploymentPipeline,
-                  ns.name!,
-                  project.name!,
-                );
-                allEntities.push(pipelineEntity);
-                this.logger.debug(
-                  `Created deployment pipeline entity for project: ${project.name}`,
-                );
+                const pipeline = pipelineData.data as ModelsDeploymentPipeline;
+                const pipelineKey = `${ns.name!}/${pipeline.name}`;
+                const existing = pipelineMap.get(pipelineKey);
+
+                if (existing) {
+                  // Pipeline already seen from another project — append this project ref
+                  if (!existing.spec.projectRefs?.includes(project.name!)) {
+                    existing.spec.projectRefs = [
+                      ...(existing.spec.projectRefs || []),
+                      project.name!,
+                    ];
+                  }
+                  this.logger.debug(
+                    `Added project ${project.name} to existing pipeline entity: ${pipeline.name}`,
+                  );
+                } else {
+                  const pipelineEntity =
+                    this.translateDeploymentPipelineToEntity(
+                      pipeline,
+                      ns.name!,
+                      project.name!,
+                    );
+                  pipelineMap.set(pipelineKey, pipelineEntity);
+                  this.logger.debug(
+                    `Created deployment pipeline entity for project: ${project.name}`,
+                  );
+                }
               } else {
                 this.logger.debug(
                   `No deployment pipeline found for project ${project.name}`,
@@ -568,6 +595,9 @@ export class OpenChoreoEntityProvider implements EntityProvider {
               );
             }
           }
+
+          // Add all deduplicated pipeline entities for this namespace
+          allEntities.push(...pipelineMap.values());
         } catch (error) {
           this.logger.warn(
             `Failed to fetch projects for namespace ${ns.name}: ${error}`,
@@ -996,6 +1026,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
           'openchoreo.io/observability-plane-ref':
             this.normalizeObservabilityPlaneRef(
               dataplane.observabilityPlaneRef,
+              namespaceName,
             ),
           ...this.mapAgentConnectionAnnotations(dataplane.agentConnection),
         },
@@ -1016,6 +1047,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
         namespaceHTTPSPort: dataplane.namespaceHTTPSPort,
         observabilityPlaneRef: this.normalizeObservabilityPlaneRef(
           dataplane.observabilityPlaneRef,
+          namespaceName,
         ),
       },
     };
@@ -1048,6 +1080,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
           'openchoreo.io/observability-plane-ref':
             this.normalizeObservabilityPlaneRef(
               buildplane.observabilityPlaneRef,
+              namespaceName,
             ),
           ...this.mapAgentConnectionAnnotations(buildplane.agentConnection),
         },
@@ -1061,6 +1094,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
         domain: `default/${namespaceName}`,
         observabilityPlaneRef: this.normalizeObservabilityPlaneRef(
           buildplane.observabilityPlaneRef,
+          namespaceName,
         ),
       },
     };
@@ -1112,16 +1146,27 @@ export class OpenChoreoEntityProvider implements EntityProvider {
   }
 
   /**
-   * Normalizes an observabilityPlaneRef value to a string.
+   * Normalizes an observabilityPlaneRef value to a namespace-qualified string.
    * The API may return this as a string or as an object { kind, name }.
+   * The namespace is included so that processors resolve the ref to the correct
+   * ObservabilityPlane entity (which lives in the same namespace as the parent).
    */
-  private normalizeObservabilityPlaneRef(ref: unknown): string {
+  private normalizeObservabilityPlaneRef(
+    ref: unknown,
+    namespaceName: string,
+  ): string {
     if (!ref) return '';
-    if (typeof ref === 'string') return ref;
-    if (typeof ref === 'object' && ref !== null && 'name' in ref) {
-      return (ref as { name: string }).name;
+    let name: string;
+    if (typeof ref === 'string') {
+      name = ref;
+    } else if (typeof ref === 'object' && ref !== null && 'name' in ref) {
+      name = (ref as { name: string }).name;
+    } else {
+      return '';
     }
-    return '';
+    // If the name already contains a namespace qualifier, return as-is
+    if (name.includes('/')) return name;
+    return `${namespaceName}/${name}`;
   }
 
   /**
@@ -1209,7 +1254,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
       },
       spec: {
         type: 'promotion-pipeline',
-        projectRef: projectName,
+        projectRefs: [projectName],
         namespaceName: namespaceName,
         promotionPaths,
       },
@@ -1300,6 +1345,7 @@ export class OpenChoreoEntityProvider implements EntityProvider {
               [CHOREO_ANNOTATIONS.ENDPOINT_NAME]: endpointName,
               [CHOREO_ANNOTATIONS.ENDPOINT_TYPE]: endpoint.type,
               [CHOREO_ANNOTATIONS.ENDPOINT_PORT]: endpoint.port.toString(),
+              [CHOREO_ANNOTATIONS.ENDPOINT_VISIBILITY]: endpoint.visibility,
               [CHOREO_ANNOTATIONS.PROJECT]: projectName,
               [CHOREO_ANNOTATIONS.NAMESPACE]: namespaceName,
             },

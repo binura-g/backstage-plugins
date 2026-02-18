@@ -18,6 +18,7 @@ export const CHOREO_ANNOTATIONS = {
   ENDPOINT_NAME: 'openchoreo.io/endpoint-name',
   ENDPOINT_TYPE: 'openchoreo.io/endpoint-type',
   ENDPOINT_PORT: 'openchoreo.io/endpoint-port',
+  ENDPOINT_VISIBILITY: 'openchoreo.io/endpoint-visibility',
   // Component Type Definition (CTD) annotations
   CTD_NAME: 'openchoreo.io/ctd-name',
   CTD_DISPLAY_NAME: 'openchoreo.io/ctd-display-name',
@@ -91,6 +92,18 @@ export const RELATION_OBSERVED_BY = 'observedBy';
  * This is the inverse of RELATION_OBSERVED_BY.
  */
 export const RELATION_OBSERVES = 'observes';
+
+/**
+ * A relation indicating that a Component is an instance of a ComponentType.
+ * The source is the Component, the target is the ComponentType.
+ */
+export const RELATION_INSTANCE_OF = 'instanceOf';
+
+/**
+ * A relation indicating that a ComponentType has a Component instance.
+ * This is the inverse of RELATION_INSTANCE_OF.
+ */
+export const RELATION_HAS_INSTANCE = 'hasInstance';
 
 /**
  * A relation indicating that a ComponentType uses a ComponentWorkflow (via allowedWorkflows).

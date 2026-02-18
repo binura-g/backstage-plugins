@@ -281,5 +281,48 @@ export {
   type GroupedItems,
 } from './utils/overrideGroupUtils';
 
+// Graph utilities
+export {
+  ENTITY_KIND_COLORS,
+  DEFAULT_NODE_COLOR,
+  KIND_LABEL_PREFIXES,
+  KIND_FULL_LABELS,
+  getNodeColor,
+  getNodeDisplayLabel,
+  getNodeKindLabel,
+} from './utils/graphUtils';
+export {
+  type GraphViewDefinition,
+  type FilterPreset,
+  APPLICATION_VIEW,
+  INFRASTRUCTURE_VIEW,
+  ALL_VIEWS,
+  FILTER_PRESETS,
+  ALL_FILTERABLE_KINDS,
+  buildDynamicView,
+} from './utils/platformOverviewConstants';
+
+// Graph components
+export { CustomGraphNode } from './components/CustomGraphNode';
+export { GraphLegend, type GraphLegendProps } from './components/GraphLegend';
+export {
+  GraphKindFilter,
+  type GraphKindFilterProps,
+} from './components/GraphKindFilter';
+export {
+  PlatformOverviewGraphView,
+  type PlatformOverviewGraphViewProps,
+} from './components/PlatformOverviewGraphView';
+
+// Graph hooks
+export { useAllEntitiesOfKinds } from './hooks/useAllEntitiesOfKinds';
+export {
+  useEntityGraphData,
+  type UseEntityGraphDataResult,
+} from './hooks/useEntityGraphData';
+
+// Re-export graph types for consumers
+export { type EntityNode } from '@backstage/plugin-catalog-graph';
+
 // Routing utilities
 export * from './routing';
