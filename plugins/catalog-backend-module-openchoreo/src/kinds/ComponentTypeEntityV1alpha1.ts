@@ -19,10 +19,6 @@ export interface ComponentTypeEntityV1alpha1 extends Entity {
    */
   spec: {
     /**
-     * The type of entity (always 'component-type')
-     */
-    type: string;
-    /**
      * The domain this component type belongs to
      */
     domain?: string;
@@ -34,5 +30,9 @@ export interface ComponentTypeEntityV1alpha1 extends Entity {
      * List of allowed component workflow names
      */
     allowedWorkflows?: string[];
+    /**
+     * List of allowed trait names for this component type
+     */
+    allowedTraits?: Array<{ kind?: string; name: string }>;
   };
 }

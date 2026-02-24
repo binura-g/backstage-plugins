@@ -50,8 +50,8 @@ export interface ComponentTrait {
 export interface ComponentSpec {
   /** Owner of the component */
   owner: ComponentOwner;
-  /** Component type in format: {workloadType}/{componentTypeName} */
-  componentType: string;
+  /** Component type reference with kind and name */
+  componentType: { kind: string; name: string };
   /** Parameters from the component type (user provided values) */
   parameters: Record<string, any>;
   /** Auto deploy flag - automatically deploy when build succeeds */
@@ -121,7 +121,7 @@ export interface WorkloadContainer {
 export interface WorkloadEndpoint {
   type: 'HTTP' | 'REST' | 'GraphQL' | 'Websocket' | 'gRPC' | 'TCP' | 'UDP';
   port: number;
-  visibility: 'project' | 'namespace' | 'internal' | 'external';
+  visibility?: ('project' | 'namespace' | 'internal' | 'external')[];
 }
 
 /**
@@ -130,7 +130,7 @@ export interface WorkloadEndpoint {
  */
 export interface WorkloadSpec {
   owner: WorkloadOwner;
-  containers: Record<string, WorkloadContainer>;
+  container?: WorkloadContainer;
   endpoints?: Record<string, WorkloadEndpoint>;
 }
 

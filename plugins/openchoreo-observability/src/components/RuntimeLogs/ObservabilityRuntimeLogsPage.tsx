@@ -1,8 +1,9 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { Box, Typography, Button } from '@material-ui/core';
 import { EmptyState, WarningIcon } from '@backstage/core-components';
 import { Alert } from '@material-ui/lab';
 import { useEntity } from '@backstage/plugin-catalog-react';
+import { CHOREO_ANNOTATIONS } from '@openchoreo/backstage-plugin-common';
 import { LogsFilter } from './LogsFilter';
 import { LogsTable } from './LogsTable';
 import { LogsActions } from './LogsActions';
@@ -58,6 +59,13 @@ export const ObservabilityRuntimeLogsPage = () => {
     env => env.id === filters.environmentId,
   );
 
+  // Get component name from entity annotations
+  const componentName =
+    entity.metadata.annotations?.[CHOREO_ANNOTATIONS.COMPONENT];
+
+  // Track last updated time
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
   const {
     logs,
     loading: logsLoading,
@@ -75,6 +83,9 @@ export const ObservabilityRuntimeLogsPage = () => {
     timeRange: filters.timeRange,
     logLevels: filters.logLevel,
     limit: 50,
+    searchQuery: filters.searchQuery,
+    sortOrder: filters.sortOrder || 'desc',
+    isLive: filters.isLive,
   });
 
   const { loadingRef } = useInfiniteScroll(loadMore, hasMore, logsLoading);
@@ -85,6 +96,8 @@ export const ObservabilityRuntimeLogsPage = () => {
     environmentId: string;
     logLevel: string[];
     timeRange: string;
+    searchQuery?: string;
+    sortOrder?: 'asc' | 'desc';
     componentId: string | null;
     projectId: string | null;
   } | null>(null);
@@ -97,9 +110,10 @@ export const ObservabilityRuntimeLogsPage = () => {
       environmentId: filters.environmentId,
       logLevel: filters.logLevel,
       timeRange: filters.timeRange,
+      searchQuery: filters.searchQuery,
+      sortOrder: filters.sortOrder,
       componentId: componentId,
       projectId: projectId,
-      // TODO: Sort filter will be added here later
     };
 
     // Only fetch if filters changed (null means first load)
@@ -118,12 +132,15 @@ export const ObservabilityRuntimeLogsPage = () => {
       filtersChanged
     ) {
       fetchLogs(true);
+      setLastUpdated(new Date());
       previousFiltersRef.current = currentFilters;
     }
   }, [
     filters.environmentId,
     filters.logLevel,
     filters.timeRange,
+    filters.searchQuery,
+    filters.sortOrder,
     componentId,
     projectId,
     fetchLogs,
@@ -132,8 +149,16 @@ export const ObservabilityRuntimeLogsPage = () => {
     project,
   ]);
 
+  // Update lastUpdated when logs are refreshed
+  useEffect(() => {
+    if (!logsLoading) {
+      setLastUpdated(new Date());
+    }
+  }, [logsLoading]);
+
   const handleRefresh = () => {
     refresh();
+    setLastUpdated(new Date());
   };
 
   const handleFiltersChange = (newFilters: Partial<typeof filters>) => {
@@ -213,6 +238,9 @@ export const ObservabilityRuntimeLogsPage = () => {
             totalCount={totalCount}
             disabled={logsLoading || !filters.environmentId}
             onRefresh={handleRefresh}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            lastUpdated={lastUpdated}
           />
 
           <LogsTable
@@ -221,6 +249,9 @@ export const ObservabilityRuntimeLogsPage = () => {
             loading={logsLoading}
             hasMore={hasMore}
             loadingRef={loadingRef}
+            environmentName={selectedEnvironment?.name}
+            projectName={project}
+            componentName={componentName}
           />
         </>
       )}

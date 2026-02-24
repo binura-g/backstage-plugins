@@ -2,9 +2,14 @@
   "outputDir": "src/generated",
   "specs": [
     {
+      "name": "openchoreo-legacy",
+      "input": "openapi/openchoreo-api-legacy.yaml",
+      "description": "OpenChoreo API (Legacy/Pre-1.0)"
+    },
+    {
       "name": "openchoreo",
       "input": "openapi/openchoreo-api.yaml",
-      "description": "OpenChoreo Main API"
+      "description": "OpenChoreo API"
     },
     {
       "name": "observability",
@@ -19,7 +24,7 @@
   ],
   "versionField": "openChoreoVersion",
   "versionFile": "src/version.ts",
-  "lastSyncCommit": "6f541d38accf45d41ca69886e87b8bf1b422e151",
-  "lastSyncDate": "2026-02-12T11:55:12+05:30",
-  "lastSyncDescription": "Updated DataPlaneRef from string to object with kind and name fields in EnvironmentResponse and CreateEnvironmentRequest"
+  "lastSyncCommit": "69f42d25bd8b05dd59b43532fcff9b3b48a7a3c6",
+  "lastSyncDate": "2026-02-20T10:20:43+05:30",
+  "lastSyncDescription": "Changed allowedTraits from string[] to AllowedTraitResponse[] (object with kind and name fields)"
 }

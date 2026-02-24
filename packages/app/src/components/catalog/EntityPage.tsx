@@ -11,7 +11,6 @@ import {
   EntityDependsOnComponentsCard,
   EntityDependsOnResourcesCard,
   EntityHasComponentsCard,
-  EntityHasSystemsCard,
   EntityLayout,
   EntityLinksCard,
   EntitySwitch,
@@ -77,6 +76,8 @@ import {
   RuntimeHealthCard,
   DeploymentPipelineCard,
   ProjectComponentsCard,
+  NamespaceProjectsCard,
+  NamespaceResourcesCard,
   Traits,
   EnvironmentStatusSummaryCard,
   EnvironmentDeployedComponentsCard,
@@ -97,6 +98,10 @@ import {
 import { EntityLayoutWithDelete } from './EntityLayoutWithDelete';
 
 import { Workflows } from '@openchoreo/backstage-plugin-openchoreo-ci';
+import {
+  WorkflowRunsContent,
+  EntityNamespaceProvider,
+} from '@openchoreo/backstage-plugin-openchoreo-workflows';
 
 import {
   ObservabilityMetrics,
@@ -108,6 +113,7 @@ import {
 import {
   FeatureGate,
   CustomGraphNode,
+  OpenChoreoEntityLayout,
 } from '@openchoreo/backstage-plugin-react';
 import { FeatureGatedContent } from './FeatureGatedContent';
 import { WorkflowsOrExternalCICard } from './WorkflowsOrExternalCICard';
@@ -116,6 +122,19 @@ import { WorkflowsOrExternalCICard } from './WorkflowsOrExternalCICard';
 import { EntityJenkinsContent } from '@backstage-community/plugin-jenkins';
 import { EntityGithubActionsContent } from '@backstage-community/plugin-github-actions';
 import { EntityGitlabContent } from '@immobiliarelabs/backstage-plugin-gitlab';
+
+const PLATFORM_KIND_DISPLAY_NAMES: Record<string, string> = {
+  domain: 'Namespace',
+  dataplane: 'Dataplane',
+  buildplane: 'Build Plane',
+  observabilityplane: 'Observability Plane',
+  environment: 'Environment',
+  deploymentpipeline: 'Deployment Pipeline',
+  componenttype: 'Component Type',
+  traittype: 'Trait Type',
+  workflow: 'Workflow',
+  componentworkflow: 'Component Workflow',
+};
 
 // Annotation predicates for conditionally showing CI tabs
 const hasJenkinsAnnotation = (entity: Entity) =>
@@ -129,6 +148,9 @@ const hasGitlabAnnotation = (entity: Entity) =>
     entity.metadata.annotations?.['gitlab.com/project-slug'] ||
       entity.metadata.annotations?.['gitlab.com/project-id'],
   );
+
+const hasTechdocsAnnotation = (entity: Entity) =>
+  Boolean(entity.metadata.annotations?.['backstage.io/techdocs-ref']);
 
 const techdocsContent = (
   <EntityTechdocsContent>
@@ -223,14 +245,14 @@ const serviceEntityPage = (
       <Environments />
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/runtime-logs" title="Runtime Logs">
+    <EntityLayout.Route path="/traits" title="Traits">
+      <Traits />
+    </EntityLayout.Route>
+
+    <EntityLayout.Route path="/runtime-logs" title="Logs">
       <FeatureGatedContent feature="observability">
         <ObservabilityRuntimeLogs />
       </FeatureGatedContent>
-    </EntityLayout.Route>
-
-    <EntityLayout.Route path="/traits" title="Traits">
-      <Traits />
     </EntityLayout.Route>
 
     <EntityLayout.Route path="/metrics" title="Metrics">
@@ -269,7 +291,7 @@ const serviceEntityPage = (
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/docs" title="Docs">
+    <EntityLayout.Route path="/docs" title="Docs" if={hasTechdocsAnnotation}>
       {techdocsContent}
     </EntityLayout.Route>
 
@@ -300,7 +322,7 @@ const serviceEntityPage = (
  * Website entity page with delete menu support.
  * Routes are defined as static JSX children so routable extensions are discoverable.
  */
-const websiteEntityPage = (
+const genericComponentEntityPage = (
   <EntityLayoutWithDelete>
     <EntityLayout.Route path="/" title="Overview">
       <OverviewContent />
@@ -316,14 +338,14 @@ const websiteEntityPage = (
       <Environments />
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/runtime-logs" title="Runtime Logs">
+    <EntityLayout.Route path="/traits" title="Traits">
+      <Traits />
+    </EntityLayout.Route>
+
+    <EntityLayout.Route path="/runtime-logs" title="Logs">
       <FeatureGatedContent feature="observability">
         <ObservabilityRuntimeLogs />
       </FeatureGatedContent>
-    </EntityLayout.Route>
-
-    <EntityLayout.Route path="/traits" title="Traits">
-      <Traits />
     </EntityLayout.Route>
 
     <EntityLayout.Route path="/metrics" title="Metrics">
@@ -351,7 +373,7 @@ const websiteEntityPage = (
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/docs" title="Docs">
+    <EntityLayout.Route path="/docs" title="Docs" if={hasTechdocsAnnotation}>
       {techdocsContent}
     </EntityLayout.Route>
 
@@ -391,7 +413,7 @@ const defaultEntityPage = (
       <OverviewContent />
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/docs" title="Docs">
+    <EntityLayout.Route path="/docs" title="Docs" if={hasTechdocsAnnotation}>
       {techdocsContent}
     </EntityLayout.Route>
   </EntityLayout>
@@ -419,11 +441,8 @@ function getComponentPageVariant(entity: Entity): PageVariant {
 const isServiceComponent = (entity: Entity) =>
   getComponentPageVariant(entity) === 'service';
 
-const isWebsiteComponent = (entity: Entity) =>
-  getComponentPageVariant(entity) === 'website';
-
-const isScheduledTaskComponent = (entity: Entity) =>
-  getComponentPageVariant(entity) === 'scheduled-task';
+const isGenericComponent = (entity: Entity) =>
+  getComponentPageVariant(entity) !== 'service';
 
 const componentPage = (
   <EntitySwitch>
@@ -431,12 +450,8 @@ const componentPage = (
       {serviceEntityPage}
     </EntitySwitch.Case>
 
-    <EntitySwitch.Case if={isWebsiteComponent}>
-      {websiteEntityPage}
-    </EntitySwitch.Case>
-
-    <EntitySwitch.Case if={isScheduledTaskComponent}>
-      {defaultEntityPage}
+    <EntitySwitch.Case if={isGenericComponent}>
+      {genericComponentEntityPage}
     </EntitySwitch.Case>
 
     {/* Fallback for unknown component types or 'default' variant */}
@@ -523,7 +538,8 @@ const groupPage = (
 
 /**
  * System page (for Projects) with delete menu support.
- * Routes are defined as static JSX children so routable extensions are discoverable.
+ * Uses OpenChoreoEntityLayout (via EntityLayoutWithDelete) for compact header
+ * with kind display name override: system → Project.
  */
 const systemPage = (
   <EntityLayoutWithDelete>
@@ -587,27 +603,39 @@ const systemPage = (
   </EntityLayoutWithDelete>
 );
 
+/**
+ * Domain page. Uses OpenChoreoEntityLayout with kindDisplayNames
+ * to show "Namespace" instead of "Domain" for OpenChoreo domains.
+ */
 const domainPage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    kindDisplayNames={{ domain: 'Namespace' }}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
+        <Grid item md={6}>
+          <NamespaceProjectsCard />
+        </Grid>
+        <Grid item md={6}>
+          <NamespaceResourcesCard />
+        </Grid>
         <Grid item md={6}>
           <EntityAboutCard variant="gridItem" />
         </Grid>
         <Grid item md={6} xs={12}>
           <EntityCatalogGraphCard
             variant="gridItem"
-            height={400}
+            height={500}
+            zoom="enabled"
+            maxDepth={1}
             renderNode={CustomGraphNode}
           />
         </Grid>
-        <Grid item md={6}>
-          <EntityHasSystemsCard variant="gridItem" />
-        </Grid>
       </Grid>
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const resourcePage = (
@@ -637,8 +665,12 @@ const resourcePage = (
 );
 
 const environmentPage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         {/* Row 1: Deployment Health + Deployment Pipelines */}
@@ -672,16 +704,20 @@ const environmentPage = (
           />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const dataplanePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         {/* Row 1: Status + Hosted Environments */}
@@ -700,6 +736,8 @@ const dataplanePage = (
             variant="gridItem"
             height={400}
             relations={[
+              RELATION_PART_OF,
+              RELATION_HAS_PART,
               RELATION_HOSTED_ON,
               RELATION_HOSTS,
               RELATION_OBSERVED_BY,
@@ -709,16 +747,20 @@ const dataplanePage = (
           />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const buildPlanePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         {/* Row 1: Status + Relations */}
@@ -729,7 +771,12 @@ const buildPlanePage = (
           <EntityCatalogGraphCard
             variant="gridItem"
             height={400}
-            relations={[RELATION_OBSERVED_BY, RELATION_OBSERVES]}
+            relations={[
+              RELATION_PART_OF,
+              RELATION_HAS_PART,
+              RELATION_OBSERVED_BY,
+              RELATION_OBSERVES,
+            ]}
             renderNode={CustomGraphNode}
           />
         </Grid>
@@ -738,16 +785,20 @@ const buildPlanePage = (
           <EntityAboutCard variant="gridItem" />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const observabilityPlanePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         {/* Row 1: Status + Linked Planes */}
@@ -765,22 +816,31 @@ const observabilityPlanePage = (
           <EntityCatalogGraphCard
             variant="gridItem"
             height={400}
-            relations={[RELATION_OBSERVED_BY, RELATION_OBSERVES]}
+            relations={[
+              RELATION_PART_OF,
+              RELATION_HAS_PART,
+              RELATION_OBSERVED_BY,
+              RELATION_OBSERVES,
+            ]}
             unidirectional={false}
             renderNode={CustomGraphNode}
           />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const deploymentPipelinePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         {/* Row 1: Pipeline Visualization + Promotion Paths (side by side) */}
@@ -799,6 +859,8 @@ const deploymentPipelinePage = (
             variant="gridItem"
             height={400}
             relations={[
+              RELATION_PART_OF,
+              RELATION_HAS_PART,
               RELATION_PROMOTES_TO,
               RELATION_PROMOTED_BY,
               RELATION_USES_PIPELINE,
@@ -808,16 +870,20 @@ const deploymentPipelinePage = (
           />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const componentTypePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         <Grid item md={6} xs={12}>
@@ -834,16 +900,20 @@ const componentTypePage = (
           <EntityAboutCard variant="gridItem" />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const traitTypePage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         <Grid item md={6} xs={12}>
@@ -860,16 +930,20 @@ const traitTypePage = (
           <EntityAboutCard variant="gridItem" />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const workflowPage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         <Grid item md={6} xs={12}>
@@ -886,16 +960,25 @@ const workflowPage = (
           <EntityAboutCard variant="gridItem" />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/runs" title="Runs">
+      <EntityNamespaceProvider>
+        <WorkflowRunsContent />
+      </EntityNamespaceProvider>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 const componentWorkflowPage = (
-  <EntityLayout UNSTABLE_contextMenuOptions={{ disableUnregister: 'hidden' }}>
-    <EntityLayout.Route path="/" title="Overview">
+  <OpenChoreoEntityLayout
+    contextMenuOptions={{ disableUnregister: 'hidden' }}
+    parentEntityRelations={['partOf']}
+    kindDisplayNames={PLATFORM_KIND_DISPLAY_NAMES}
+  >
+    <OpenChoreoEntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3} alignItems="stretch">
         {entityWarningContent}
         <Grid item md={6} xs={12}>
@@ -905,7 +988,12 @@ const componentWorkflowPage = (
           <EntityCatalogGraphCard
             variant="gridItem"
             height={400}
-            relations={[RELATION_USES_WORKFLOW, RELATION_WORKFLOW_USED_BY]}
+            relations={[
+              RELATION_PART_OF,
+              RELATION_HAS_PART,
+              RELATION_USES_WORKFLOW,
+              RELATION_WORKFLOW_USED_BY,
+            ]}
             renderNode={CustomGraphNode}
           />
         </Grid>
@@ -913,11 +1001,11 @@ const componentWorkflowPage = (
           <EntityAboutCard variant="gridItem" />
         </Grid>
       </Grid>
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
+    </OpenChoreoEntityLayout.Route>
+    <OpenChoreoEntityLayout.Route path="/definition" title="Definition">
       <ResourceDefinitionTab />
-    </EntityLayout.Route>
-  </EntityLayout>
+    </OpenChoreoEntityLayout.Route>
+  </OpenChoreoEntityLayout>
 );
 
 export const entityPage = (

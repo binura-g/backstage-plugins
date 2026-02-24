@@ -9,8 +9,6 @@ import {
   IconButton,
   Tooltip,
 } from '@material-ui/core';
-import ExpandMore from '@material-ui/icons/ExpandMore';
-import ExpandLess from '@material-ui/icons/ExpandLess';
 import FileCopyOutlined from '@material-ui/icons/FileCopyOutlined';
 import { LogEntry as LogEntryType, LogEntryField } from './types';
 import { useLogEntryStyles } from './styles';
@@ -18,11 +16,53 @@ import { useLogEntryStyles } from './styles';
 interface LogEntryProps {
   log: LogEntryType;
   selectedFields: LogEntryField[];
+  environmentName?: string;
+  projectName?: string;
+  componentName?: string;
 }
 
-export const LogEntry: FC<LogEntryProps> = ({ log, selectedFields }) => {
+export const LogEntry: FC<LogEntryProps> = ({
+  log,
+  selectedFields,
+  environmentName,
+  projectName,
+  componentName,
+}) => {
   const classes = useLogEntryStyles();
   const [expanded, setExpanded] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleRowClick = () => {
+    setExpanded(!expanded);
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
+
+  const handleCopyLog = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+
+    // Check if clipboard API is available
+    if (!navigator.clipboard?.writeText) {
+      // Clipboard API not supported or not in secure context
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(log.log);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      // Silent fail - clipboard operation failed
+      // Could be due to permissions or other issues
+    }
+  };
 
   const getLogLevelChipClass = (level: string) => {
     switch (level) {
@@ -41,36 +81,24 @@ export const LogEntry: FC<LogEntryProps> = ({ log, selectedFields }) => {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = (timestamp: string): string => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const truncatePodId = (podId: string) => {
-    return podId.length > 8 ? `${podId.substring(0, 8)}...` : podId;
-  };
-
-  const handleCopyLog = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    navigator.clipboard.writeText(log.log).catch(_ => {
-      // TODO: Add error handling
-    });
-  };
-
-  const handleRowClick = () => {
-    setExpanded(!expanded);
-  };
-
-  const renderFieldCell = (field: LogEntryField) => {
-    switch (field) {
-      case LogEntryField.Timestamp:
-        return (
+  return (
+    <>
+      <TableRow
+        className={`${classes.logRow} ${expanded ? classes.expandedRow : ''}`}
+        onClick={handleRowClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {selectedFields.includes(LogEntryField.Timestamp) && (
           <TableCell className={classes.timestampCell}>
             {formatTimestamp(log.timestamp)}
           </TableCell>
-        );
-
-      case LogEntryField.LogLevel:
-        return (
+        )}
+        {selectedFields.includes(LogEntryField.LogLevel) && (
           <TableCell>
             <Chip
               label={log.logLevel}
@@ -80,10 +108,8 @@ export const LogEntry: FC<LogEntryProps> = ({ log, selectedFields }) => {
               )}`}
             />
           </TableCell>
-        );
-
-      case LogEntryField.Log:
-        return (
+        )}
+        {selectedFields.includes(LogEntryField.Log) && (
           <TableCell className={classes.logCell}>
             <Box display="flex" alignItems="center">
               <Typography
@@ -93,155 +119,130 @@ export const LogEntry: FC<LogEntryProps> = ({ log, selectedFields }) => {
               >
                 {log.log}
               </Typography>
-              <Tooltip title="Copy log message">
-                <IconButton
-                  className={classes.copyButton}
-                  onClick={handleCopyLog}
-                  size="small"
-                >
-                  <FileCopyOutlined fontSize="inherit" />
-                </IconButton>
-              </Tooltip>
+              {isHovered && (
+                <Tooltip title={copySuccess ? 'Copied!' : 'Copy log message'}>
+                  <IconButton
+                    className={classes.copyButton}
+                    onClick={handleCopyLog}
+                    size="small"
+                  >
+                    <FileCopyOutlined fontSize="inherit" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
           </TableCell>
-        );
-
-      case LogEntryField.Container:
-        return (
-          <TableCell className={classes.containerCell}>
-            {log.containerName}
-          </TableCell>
-        );
-
-      case LogEntryField.Pod:
-        return (
-          <TableCell className={classes.podCell}>
-            <Tooltip title={log.podId}>
-              <span
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: 'block',
-                }}
-              >
-                {truncatePodId(log.podId)}
-              </span>
-            </Tooltip>
-          </TableCell>
-        );
-
-      default:
-        return <TableCell />;
-    }
-  };
-
-  const totalColumns = selectedFields.length + 1; // +1 for Details column
-
-  return (
-    <>
-      <TableRow
-        className={`${classes.logRow} ${expanded ? classes.expandedRow : ''}`}
-        onClick={handleRowClick}
-      >
-        {selectedFields.map(field => renderFieldCell(field))}
-        <TableCell>
-          <IconButton
-            className={classes.expandButton}
-            size="small"
-            onClick={e => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-          >
-            {expanded ? <ExpandLess /> : <ExpandMore />}
-          </IconButton>
-        </TableCell>
+        )}
       </TableRow>
 
       {expanded && (
         <TableRow>
           <TableCell
-            colSpan={totalColumns}
+            colSpan={selectedFields.length}
             style={{ paddingBottom: 0, paddingTop: 0 }}
           >
             <Collapse in={expanded} timeout="auto" unmountOnExit>
               <Box className={classes.expandedContent}>
-                <Typography variant="h6" gutterBottom>
+                <Typography
+                  className={classes.expandedSectionTitle}
+                  gutterBottom
+                >
                   Full Log Message
                 </Typography>
                 <Box className={classes.fullLogMessage}>{log.log}</Box>
 
                 <Box className={classes.metadataSection}>
-                  <Typography variant="h6" className={classes.metadataTitle}>
+                  <Typography
+                    className={`${classes.metadataTitle} ${classes.expandedSectionTitle}`}
+                  >
                     Metadata
                   </Typography>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Component:</span>
-                    <span className={classes.metadataValue}>
-                      {log.componentId}
-                    </span>
-                  </Box>
+                  <Box className={classes.metadataBox}>
+                    <Box className={classes.metadataGrid}>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Environment Name:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {environmentName}
+                        </span>
+                      </Box>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Environment:</span>
-                    <span className={classes.metadataValue}>
-                      {log.environmentId}
-                    </span>
-                  </Box>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Environment UID:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {log.environmentId}
+                        </span>
+                      </Box>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Project:</span>
-                    <span className={classes.metadataValue}>
-                      {log.projectId}
-                    </span>
-                  </Box>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Project Name:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {projectName}
+                        </span>
+                      </Box>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Namespace:</span>
-                    <span className={classes.metadataValue}>
-                      {log.namespace}
-                    </span>
-                  </Box>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Project UID:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {log.projectId}
+                        </span>
+                      </Box>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Pod ID:</span>
-                    <span className={classes.metadataValue}>{log.podId}</span>
-                  </Box>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Component Name:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {componentName}
+                        </span>
+                      </Box>
 
-                  <Box className={classes.metadataItem}>
-                    <span className={classes.metadataKey}>Container:</span>
-                    <span className={classes.metadataValue}>
-                      {log.containerName}
-                    </span>
-                  </Box>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>
+                          Component UID:
+                        </span>
+                        <span className={classes.metadataValue}>
+                          {log.componentId}
+                        </span>
+                      </Box>
 
-                  {log.version && (
-                    <Box className={classes.metadataItem}>
-                      <span className={classes.metadataKey}>Version:</span>
-                      <span className={classes.metadataValue}>
-                        {log.version}
-                      </span>
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>Pod Name:</span>
+                        <span className={classes.metadataValue}>
+                          NOT AVAILABLE
+                        </span>
+                      </Box>
+
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>Pod ID:</span>
+                        <span className={classes.metadataValue}>
+                          {log.podId}
+                        </span>
+                      </Box>
+
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>Namespace:</span>
+                        <span className={classes.metadataValue}>
+                          {log.namespace}
+                        </span>
+                      </Box>
+
+                      <Box className={classes.metadataItem}>
+                        <span className={classes.metadataKey}>Container:</span>
+                        <span className={classes.metadataValue}>
+                          {log.containerName}
+                        </span>
+                      </Box>
                     </Box>
-                  )}
-
-                  {Object.keys(log.labels).length > 0 && (
-                    <>
-                      <Typography
-                        variant="subtitle1"
-                        className={classes.metadataTitle}
-                        style={{ marginTop: 16 }}
-                      >
-                        Labels
-                      </Typography>
-                      {Object.entries(log.labels).map(([key, value]) => (
-                        <Box key={key} className={classes.metadataItem}>
-                          <span className={classes.metadataKey}>{key}:</span>
-                          <span className={classes.metadataValue}>{value}</span>
-                        </Box>
-                      ))}
-                    </>
-                  )}
+                  </Box>
                 </Box>
               </Box>
             </Collapse>

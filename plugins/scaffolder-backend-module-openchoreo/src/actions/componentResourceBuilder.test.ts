@@ -25,9 +25,12 @@ describe('buildComponentResource', () => {
     expect(result.spec.autoDeploy).toBe(false);
   });
 
-  it('should format componentType as workloadType/componentType', () => {
+  it('should format componentType as object with kind and name', () => {
     const result = buildComponentResource(minimalInput);
-    expect(result.spec.componentType).toBe('deployment/service');
+    expect(result.spec.componentType).toEqual({
+      kind: 'ComponentType',
+      name: 'deployment/service',
+    });
   });
 
   it('should set display name and description annotations when provided', () => {
@@ -93,9 +96,11 @@ describe('buildComponentResource', () => {
 
       expect(result.spec.workflow).toBeDefined();
       expect(result.spec.workflow!.name).toBe('google-cloud-buildpacks');
-      expect(result.spec.workflow!.docker).toEqual({
-        context: '/app',
-        filePath: '/Dockerfile',
+      expect(result.spec.workflow!.parameters).toEqual({
+        docker: {
+          context: '/app',
+          filePath: '/Dockerfile',
+        },
       });
     });
 
@@ -249,7 +254,7 @@ describe('buildWorkloadResource', () => {
     expect(result.metadata.namespace).toBe('default');
     expect(result.spec.owner.projectName).toBe('my-project');
     expect(result.spec.owner.componentName).toBe('my-service');
-    expect(result.spec.containers.main.image).toBe('nginx:latest');
+    expect(result.spec.container?.image).toBe('nginx:latest');
     expect(result.spec.endpoints).toBeUndefined();
   });
 
@@ -263,7 +268,7 @@ describe('buildWorkloadResource', () => {
     });
 
     expect(result.spec.endpoints).toEqual({
-      http: { type: 'HTTP', port: 8080, visibility: 'external' },
+      http: { type: 'HTTP', port: 8080, visibility: ['external'] },
     });
   });
 

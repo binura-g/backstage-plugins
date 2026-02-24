@@ -682,8 +682,8 @@ export interface components {
     };
     /** @description Actionable recommendations to prevent recurrence */
     Recommendations: {
-      /** @description Prioritized actions to mitigate and prevent recurrence */
-      recommended_actions?: components['schemas']['Action'][];
+      /** @description Prioritized actions to mitigate and prevent recurrence. When the remediation agent has run, these actions are enriched with status and concrete resource changes. */
+      recommended_actions?: components['schemas']['RecommendedAction'][];
       /** @description Suggestions for improving telemetry/monitoring for better future RCA */
       observability_recommendations?: components['schemas']['Action'][];
     };
@@ -693,6 +693,36 @@ export interface components {
       description: string;
       /** @description Why this action is recommended. Use backticks to highlight key info */
       rationale?: string | null;
+    };
+    /** @description A recommended action that may be enriched by the remediation agent with concrete OpenChoreo-specific guidance */
+    RecommendedAction: WithRequired<
+      components['schemas']['Action'],
+      'description'
+    > & {
+      /**
+       * @description Status of the action:
+       *     - `suggested`: Default status set by the RCA agent
+       *     - `unchanged`: Reviewed by remediation agent but kept as-is
+       *     - `revised`: Translated into concrete OpenChoreo-specific guidance by remediation agent
+       *
+       * @default suggested
+       * @enum {string}
+       */
+      status: 'suggested' | 'unchanged' | 'revised';
+      /**
+       * @description Specific resource changes to make (populated when status is `revised`)
+       * @default []
+       */
+      changes: components['schemas']['ResourceChange'][];
+    };
+    /** @description A specific change to make on an OpenChoreo resource */
+    ResourceChange: {
+      /** @description Resource kind and name (e.g. 'ReleaseBinding api-service-development') */
+      resource: string;
+      /** @description Field path to update (e.g. 'spec.workloadOverrides.container.env[name=POSTGRES_DSN].value') */
+      field_path: string;
+      /** @description Recommended value to set */
+      value: string;
     };
   };
   responses: never;
@@ -951,3 +981,6 @@ export interface operations {
     };
   };
 }
+type WithRequired<T, K extends keyof T> = T & {
+  [P in K]-?: T[P];
+};

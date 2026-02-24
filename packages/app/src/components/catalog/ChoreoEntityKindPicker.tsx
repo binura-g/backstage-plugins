@@ -1,7 +1,12 @@
-import { Select } from '@backstage/core-components';
-import { alertApiRef, useApi } from '@backstage/core-plugin-api';
+import { alertApiRef, useApi, useApp } from '@backstage/core-plugin-api';
 import Box from '@material-ui/core/Box';
-import { useEffect, useMemo, useState } from 'react';
+import ListItemIcon from '@material-ui/core/ListItemIcon';
+import ListSubheader from '@material-ui/core/ListSubheader';
+import MenuItem from '@material-ui/core/MenuItem';
+import Select from '@material-ui/core/Select';
+import Typography from '@material-ui/core/Typography';
+import { makeStyles, createStyles, Theme } from '@material-ui/core/styles';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   EntityKindFilter,
   useEntityList,
@@ -9,10 +14,10 @@ import {
 } from '@backstage/plugin-catalog-react';
 import { useUserGroups } from '../../hooks';
 
-// Mapping of internal kind names to Choreo entity kind names
+// Mapping of internal kind names to OpenChoreo display names
 const kindDisplayNames: Record<string, string> = {
-  domain: 'Domain (Namespace)',
-  system: 'System (Project)',
+  domain: 'Namespace',
+  system: 'Project',
   component: 'Component',
   api: 'API',
   user: 'User',
@@ -31,28 +36,83 @@ const kindDisplayNames: Record<string, string> = {
   componentworkflow: 'Component Workflow',
 };
 
-// Custom order for displaying entity kinds in the dropdown
-// Namespace first, then Project, then Component, then others alphabetically
-const kindDisplayOrder: string[] = [
-  'domain',
-  'system',
-  'component',
-  'api',
-  'resource',
-  'user',
-  'group',
-  'location',
-  'template',
-  'dataplane',
-  'buildplane',
-  'observabilityplane',
-  'environment',
-  'deploymentpipeline',
-  'componenttype',
-  'traittype',
-  'workflow',
-  'componentworkflow',
+interface KindCategory {
+  label: string;
+  platformOnly?: boolean;
+  kinds: string[];
+}
+
+const kindCategories: KindCategory[] = [
+  {
+    label: 'Developer Resources',
+    kinds: ['system', 'component', 'api', 'resource'],
+  },
+  {
+    label: 'Platform Resources',
+    platformOnly: true,
+    kinds: [
+      'dataplane',
+      'buildplane',
+      'observabilityplane',
+      'environment',
+      'deploymentpipeline',
+    ],
+  },
+  {
+    label: 'Platform Configuration',
+    platformOnly: true,
+    kinds: ['componenttype', 'traittype', 'workflow', 'componentworkflow'],
+  },
+  {
+    label: 'Backstage',
+    kinds: ['user', 'group', 'location', 'template'],
+  },
 ];
+
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    container: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing(1.5),
+    },
+    label: {
+      fontWeight: 'bold',
+      fontSize: theme.typography.body2.fontSize,
+      fontFamily: theme.typography.fontFamily,
+      color: theme.palette.text.primary,
+      whiteSpace: 'nowrap',
+    },
+    select: {
+      minWidth: 180,
+    },
+    renderValue: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing(1),
+      '& svg': {
+        fontSize: '1.2rem',
+        color: theme.palette.text.secondary,
+      },
+    },
+    subheader: {
+      color: theme.palette.text.secondary,
+      fontSize: theme.typography.caption.fontSize,
+      fontWeight: theme.typography.fontWeightBold as number,
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      lineHeight: '32px',
+      pointerEvents: 'none',
+    },
+    listItemIcon: {
+      minWidth: 32,
+      color: theme.palette.text.secondary,
+      '& svg': {
+        fontSize: '1.2rem',
+      },
+    },
+  }),
+);
 
 // Hook to fetch all available Choreo entity kinds from the catalog
 function useAllKinds(): {
@@ -173,8 +233,8 @@ function useEntityKindFilter(opts: { initialFilter: string }): {
 }
 
 /**
- * Custom EntityKindPicker that displays Choreo names for entity kinds
- * Maps: Domain -> Org, System -> Project
+ * Custom EntityKindPicker that displays OpenChoreo names for entity kinds
+ * Maps: Domain -> Namespace, System -> Project
  */
 export interface ChoreoEntityKindPickerProps {
   allowedKinds?: string[];
@@ -184,6 +244,8 @@ export interface ChoreoEntityKindPickerProps {
 
 export const ChoreoEntityKindPicker = (props: ChoreoEntityKindPickerProps) => {
   const { allowedKinds, hidden, initialFilter = 'component' } = props;
+  const classes = useStyles();
+  const app = useApp();
 
   const alertApi = useApi(alertApiRef);
 
@@ -205,85 +267,109 @@ export const ChoreoEntityKindPicker = (props: ChoreoEntityKindPickerProps) => {
     }
   }, [error, alertApi]);
 
-  const items = useMemo(() => {
-    // Return empty array if there's an error - component will return null anyway
-    if (error) {
-      return [];
-    }
-
-    // Create a new map with custom labels
-    const customKindsMap = new Map<string, string>();
-    allKinds.forEach((value, key) => {
+  // Build a set of available kind keys (lowercased) for filtering
+  const availableKinds = useMemo(() => {
+    const available = new Set<string>();
+    allKinds.forEach((_value, key) => {
       const lowerKey = key.toLowerCase();
-      const customLabel = kindDisplayNames[lowerKey] || value;
-      customKindsMap.set(key, customLabel);
+      if (
+        !allowedKinds ||
+        allowedKinds.some(a => a.toLowerCase() === lowerKey)
+      ) {
+        available.add(lowerKey);
+      }
     });
+    return available;
+  }, [allKinds, allowedKinds]);
 
-    // Filter kinds based on allowedKinds prop
-    let filteredKinds = allowedKinds
-      ? new Map(
-          [...customKindsMap].filter(([key]) =>
-            allowedKinds.some(
-              allowed => allowed.toLowerCase() === key.toLowerCase(),
-            ),
-          ),
-        )
-      : customKindsMap;
+  // Build grouped menu items
+  const menuItems = useMemo(() => {
+    if (error) return [];
 
-    // Always filter out platform engineer specific entities for non-platform engineers
-    // This applies regardless of allowedKinds
-    if (!isPlatformEngineer) {
-      filteredKinds = new Map(
-        [...filteredKinds].filter(([key]) => {
-          const lowerKey = key.toLowerCase();
-          return (
-            lowerKey !== 'dataplane' &&
-            lowerKey !== 'buildplane' &&
-            lowerKey !== 'observabilityplane' &&
-            lowerKey !== 'environment' &&
-            lowerKey !== 'deploymentpipeline' &&
-            lowerKey !== 'componenttype' &&
-            lowerKey !== 'traittype' &&
-            lowerKey !== 'workflow' &&
-            lowerKey !== 'componentworkflow'
-          );
-        }),
+    const items: ReactNode[] = [];
+
+    // Add Namespace (domain) as a standalone top-level item
+    if (availableKinds.has('domain')) {
+      const DomainIcon = app.getSystemIcon('kind:domain');
+      items.push(
+        <MenuItem key="domain" value="domain">
+          {DomainIcon && (
+            <ListItemIcon className={classes.listItemIcon}>
+              <DomainIcon />
+            </ListItemIcon>
+          )}
+          {kindDisplayNames.domain}
+        </MenuItem>,
       );
     }
 
-    // Sort items according to kindDisplayOrder
-    return [...filteredKinds.entries()]
-      .sort(([keyA], [keyB]) => {
-        const indexA = kindDisplayOrder.indexOf(keyA.toLowerCase());
-        const indexB = kindDisplayOrder.indexOf(keyB.toLowerCase());
+    for (const category of kindCategories) {
+      // Skip platform-only categories for non-platform engineers
+      if (category.platformOnly && !isPlatformEngineer) continue;
 
-        // If both are in the order list, sort by their position
-        if (indexA !== -1 && indexB !== -1) {
-          return indexA - indexB;
-        }
-        // If only A is in the order list, A comes first
-        if (indexA !== -1) return -1;
-        // If only B is in the order list, B comes first
-        if (indexB !== -1) return 1;
-        // If neither is in the order list, sort alphabetically by label
-        return keyA.localeCompare(keyB);
-      })
-      .map(([key, value]) => ({
-        label: value,
-        value: key.toLowerCase(), // Ensure value is lowercase to match selectedKind
-      }));
-  }, [allKinds, allowedKinds, isPlatformEngineer, error]);
+      // Filter to only kinds that exist in the catalog
+      const visibleKinds = category.kinds.filter(k => availableKinds.has(k));
+
+      // Skip category if no kinds are available
+      if (visibleKinds.length === 0) continue;
+
+      items.push(
+        <ListSubheader
+          key={`header-${category.label}`}
+          className={classes.subheader}
+          disableSticky
+        >
+          {category.label}
+        </ListSubheader>,
+      );
+
+      for (const kind of visibleKinds) {
+        const KindIcon = app.getSystemIcon(`kind:${kind}`);
+        items.push(
+          <MenuItem key={kind} value={kind}>
+            {KindIcon && (
+              <ListItemIcon className={classes.listItemIcon}>
+                <KindIcon />
+              </ListItemIcon>
+            )}
+            {kindDisplayNames[kind] || kind}
+          </MenuItem>,
+        );
+      }
+    }
+
+    return items;
+  }, [availableKinds, isPlatformEngineer, error, classes, app]);
 
   if (error) return null;
 
   return hidden ? null : (
-    <Box pb={1} pt={1}>
+    <Box pb={1} pt={1} className={classes.container}>
+      <Typography className={classes.label}>Kind</Typography>
       <Select
-        label="Kind"
-        items={items}
-        selected={selectedKind.toLowerCase()}
-        onChange={value => setSelectedKind(String(value))}
-      />
+        className={classes.select}
+        value={selectedKind.toLowerCase()}
+        onChange={e => setSelectedKind(e.target.value as string)}
+        variant="outlined"
+        fullWidth
+        renderValue={value => {
+          const kind = value as string;
+          const KindIcon = app.getSystemIcon(`kind:${kind}`);
+          return (
+            <Box className={classes.renderValue}>
+              {KindIcon && <KindIcon />}
+              {kindDisplayNames[kind] || kind}
+            </Box>
+          );
+        }}
+        MenuProps={{
+          anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+          transformOrigin: { vertical: 'top', horizontal: 'left' },
+          getContentAnchorEl: null,
+        }}
+      >
+        {menuItems}
+      </Select>
     </Box>
   );
 };

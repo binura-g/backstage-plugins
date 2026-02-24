@@ -35,7 +35,6 @@ import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import CategoryIcon from '@material-ui/icons/Category';
 import BubbleChartIcon from '@material-ui/icons/BubbleChart';
 import { AccessControlSidebarItem } from './AccessControlSidebarItem';
-import { GenericWorkflowsSidebarItem } from './GenericWorkflowsSidebarItem';
 import { GitSecretsSidebarItem } from './GitSecretsSidebarItem';
 
 const useSidebarLogoStyles = makeStyles({
@@ -119,6 +118,11 @@ export const Root = ({ children }: PropsWithChildren<{}>) => {
           {/* Global nav, not org-specific */}
           <SidebarItem icon={HomeIcon} to="/" text="Home" />
           <SidebarItem icon={CategoryIcon} to="catalog" text="Catalog" />
+          <SidebarItem
+            icon={BubbleChartIcon}
+            to="platform-overview"
+            text="Platform"
+          />
           <MyGroupsSidebarItem
             singularTitle="My Group"
             pluralTitle="My Groups"
@@ -131,17 +135,11 @@ export const Root = ({ children }: PropsWithChildren<{}>) => {
             to="create"
             text="Create..."
           />
-          <SidebarItem
-            icon={BubbleChartIcon}
-            to="platform-overview"
-            text="Platform"
-          />
           {/* End global nav */}
           <SidebarDivider />
           {/* Admin section */}
           <AccessControlSidebarItem />
           <GitSecretsSidebarItem />
-          <GenericWorkflowsSidebarItem />
           <SidebarScrollWrapper>
             {/* Items in this group will be scrollable if they run out of space */}
           </SidebarScrollWrapper>

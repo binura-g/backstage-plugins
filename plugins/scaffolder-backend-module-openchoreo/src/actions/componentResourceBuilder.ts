@@ -68,7 +68,10 @@ export function buildComponentResource(
       owner: {
         projectName: input.projectName,
       },
-      componentType: `${input.componentTypeWorkloadType}/${input.componentType}`,
+      componentType: {
+        kind: 'ComponentType',
+        name: `${input.componentTypeWorkloadType}/${input.componentType}`,
+      },
       parameters: input.ctdParameters || {},
       autoDeploy: input.autoDeploy ?? false,
     },
@@ -188,26 +191,25 @@ export function buildWorkloadResource(
         projectName: input.projectName,
         componentName: input.componentName,
       },
-      containers: {},
     },
   };
 
   if (hasImage) {
-    const mainContainer: Record<string, any> = {
+    const container: Record<string, any> = {
       image: input.containerImage,
     };
 
     // Add environment variables
     if (input.envVars && input.envVars.length > 0) {
-      mainContainer.env = input.envVars;
+      container.env = input.envVars;
     }
 
     // Add file mounts
     if (input.fileMounts && input.fileMounts.length > 0) {
-      mainContainer.files = input.fileMounts;
+      container.files = input.fileMounts;
     }
 
-    resource.spec.containers = { main: mainContainer };
+    resource.spec.container = container;
   }
 
   // Add endpoints from the new endpoints map
@@ -220,7 +222,7 @@ export function buildWorkloadResource(
       http: {
         type: 'HTTP',
         port: input.port,
-        visibility: 'external',
+        visibility: ['external'],
       },
     };
   }

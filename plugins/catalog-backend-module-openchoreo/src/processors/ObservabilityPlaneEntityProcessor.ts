@@ -4,7 +4,11 @@ import {
   processingResult,
 } from '@backstage/plugin-catalog-node';
 import { LocationSpec } from '@backstage/plugin-catalog-common';
-import { RELATION_PART_OF, parseEntityRef } from '@backstage/catalog-model';
+import {
+  RELATION_HAS_PART,
+  RELATION_PART_OF,
+  parseEntityRef,
+} from '@backstage/catalog-model';
 import { ObservabilityPlaneEntityV1alpha1 } from '../kinds/ObservabilityPlaneEntityV1alpha1';
 
 /**
@@ -27,10 +31,6 @@ export class ObservabilityPlaneEntityProcessor implements CatalogProcessor {
     emit: CatalogProcessorEmit,
   ): Promise<ObservabilityPlaneEntityV1alpha1> {
     if (entity.kind === 'ObservabilityPlane') {
-      if (!entity.spec?.type) {
-        throw new Error('ObservabilityPlane entity must have spec.type');
-      }
-
       const sourceRef = {
         kind: entity.kind.toLowerCase(),
         namespace: entity.metadata.namespace || 'default',
@@ -43,15 +43,23 @@ export class ObservabilityPlaneEntityProcessor implements CatalogProcessor {
           defaultKind: 'domain',
           defaultNamespace: entity.metadata.namespace || 'default',
         });
+        const domainTarget = {
+          kind: domainRef.kind,
+          namespace: domainRef.namespace,
+          name: domainRef.name,
+        };
         emit(
           processingResult.relation({
             source: sourceRef,
-            target: {
-              kind: domainRef.kind,
-              namespace: domainRef.namespace,
-              name: domainRef.name,
-            },
+            target: domainTarget,
             type: RELATION_PART_OF,
+          }),
+        );
+        emit(
+          processingResult.relation({
+            source: domainTarget,
+            target: sourceRef,
+            type: RELATION_HAS_PART,
           }),
         );
       }
@@ -65,12 +73,6 @@ export class ObservabilityPlaneEntityProcessor implements CatalogProcessor {
     _location: LocationSpec,
     _emit: CatalogProcessorEmit,
   ): Promise<ObservabilityPlaneEntityV1alpha1> {
-    if (entity.kind === 'ObservabilityPlane' && entity.spec) {
-      if (!entity.spec.type) {
-        entity.spec.type = 'kubernetes';
-      }
-    }
-
     return entity;
   }
 

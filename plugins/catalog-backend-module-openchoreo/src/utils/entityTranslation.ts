@@ -1,5 +1,5 @@
 import { Entity } from '@backstage/catalog-model';
-import { type OpenChoreoComponents } from '@openchoreo/openchoreo-client-node';
+import { type OpenChoreoLegacyComponents } from '@openchoreo/openchoreo-client-node';
 import {
   CHOREO_ANNOTATIONS,
   CHOREO_LABELS,
@@ -13,7 +13,8 @@ import type {
   ComponentWorkflowEntityV1alpha1,
 } from '../kinds';
 
-type ModelsComponent = OpenChoreoComponents['schemas']['ComponentResponse'];
+type ModelsComponent =
+  OpenChoreoLegacyComponents['schemas']['ComponentResponse'];
 
 /**
  * Configuration for component entity translation
@@ -70,6 +71,10 @@ export function translateComponentToEntity(
         }),
         ...(component.type && {
           [CHOREO_ANNOTATIONS.COMPONENT_TYPE]: component.type,
+        }),
+        ...(component.componentType?.kind && {
+          [CHOREO_ANNOTATIONS.COMPONENT_TYPE_KIND]:
+            component.componentType.kind,
         }),
         [CHOREO_ANNOTATIONS.PROJECT]: projectName,
         [CHOREO_ANNOTATIONS.NAMESPACE]: namespaceName,
@@ -263,6 +268,7 @@ export function translateComponentTypeToEntity(
     description?: string;
     workloadType?: string;
     allowedWorkflows?: string[];
+    allowedTraits?: Array<{ kind?: string; name: string }>;
     createdAt?: string;
   },
   namespaceName: string,
@@ -293,10 +299,10 @@ export function translateComponentTypeToEntity(
       },
     },
     spec: {
-      type: 'component-type',
       domain: `default/${namespaceName}`,
       workloadType: ct.workloadType,
       allowedWorkflows: ct.allowedWorkflows,
+      allowedTraits: ct.allowedTraits,
     },
   } as ComponentTypeEntityV1alpha1;
 }
@@ -335,7 +341,6 @@ export function translateTraitToEntity(
       },
     },
     spec: {
-      type: 'trait-type',
       domain: `default/${namespaceName}`,
     },
   };
@@ -375,7 +380,6 @@ export function translateComponentWorkflowToEntity(
       },
     },
     spec: {
-      type: 'component-workflow',
       domain: `default/${namespaceName}`,
     },
   };

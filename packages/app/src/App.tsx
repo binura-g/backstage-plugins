@@ -1,5 +1,5 @@
 import { Route } from 'react-router-dom';
-import { apiDocsPlugin, ApiExplorerPage } from '@backstage/plugin-api-docs';
+import { apiDocsPlugin } from '@backstage/plugin-api-docs';
 import {
   CatalogEntityPage,
   CatalogIndexPage,
@@ -48,6 +48,7 @@ import { UserSettingsPage } from '@backstage/plugin-user-settings';
 import { apis, openChoreoAuthApiRef } from './apis';
 import { entityPage } from './components/catalog/EntityPage';
 import { CustomCatalogPage } from './components/catalog/CustomCatalogPage';
+import { CustomApiExplorerPage } from './components/catalog/CustomApiExplorerPage';
 import { searchPage } from './components/search/SearchPage';
 import { Root } from './components/Root';
 import { HomePage } from './components/Home';
@@ -77,7 +78,6 @@ import {
   AccessControlPage,
   GitSecretsPage,
 } from '@openchoreo/backstage-plugin';
-import { GenericWorkflowsPage } from '@openchoreo/backstage-plugin-openchoreo-workflows';
 import CategoryIcon from '@material-ui/icons/Category';
 import ExtensionIcon from '@material-ui/icons/Extension';
 import PlayCircleOutlineIcon from '@material-ui/icons/PlayCircleOutline';
@@ -192,11 +192,7 @@ const routes = (
   <FlatRoutes>
     <Route path="/" element={<HomePage />} />
     <Route path="/catalog" element={<CatalogIndexPage />}>
-      <CustomCatalogPage
-        initialKind="system"
-        initiallySelectedFilter="all"
-        ownerPickerMode="all"
-      />
+      <CustomCatalogPage initialKind="system" />
     </Route>
     <Route
       path="/catalog/:namespace/:kind/:name"
@@ -254,7 +250,7 @@ const routes = (
         <WorkloadDetailsFieldExtension />
       </ScaffolderFieldExtensions>
     </Route>
-    <Route path="/api-docs" element={<ApiExplorerPage />} />
+    <Route path="/api-docs" element={<CustomApiExplorerPage />} />
     <Route
       path="/catalog-import"
       element={
@@ -278,7 +274,6 @@ const routes = (
     />
     <Route path="/platform-overview" element={<PlatformOverviewPage />} />
     <Route path="/admin/access-control" element={<AccessControlPage />} />
-    <Route path="/admin/workflows/*" element={<GenericWorkflowsPage />} />
     <Route path="/admin/git-secrets" element={<GitSecretsPage />} />
   </FlatRoutes>
 );

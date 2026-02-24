@@ -1,0 +1,1 @@
+export { NamespaceResourcesCard } from './NamespaceResourcesCard';

@@ -4,7 +4,11 @@ import {
   processingResult,
 } from '@backstage/plugin-catalog-node';
 import { LocationSpec } from '@backstage/plugin-catalog-common';
-import { RELATION_PART_OF, parseEntityRef } from '@backstage/catalog-model';
+import {
+  RELATION_HAS_PART,
+  RELATION_PART_OF,
+  parseEntityRef,
+} from '@backstage/catalog-model';
 import {
   RELATION_USES_WORKFLOW,
   RELATION_WORKFLOW_USED_BY,
@@ -31,10 +35,6 @@ export class ComponentTypeEntityProcessor implements CatalogProcessor {
     emit: CatalogProcessorEmit,
   ): Promise<ComponentTypeEntityV1alpha1> {
     if (entity.kind === 'ComponentType') {
-      if (!entity.spec?.type) {
-        throw new Error('ComponentType entity must have spec.type');
-      }
-
       const sourceRef = {
         kind: entity.kind.toLowerCase(),
         namespace: entity.metadata.namespace || 'default',
@@ -47,15 +47,23 @@ export class ComponentTypeEntityProcessor implements CatalogProcessor {
           defaultKind: 'domain',
           defaultNamespace: entity.metadata.namespace || 'default',
         });
+        const domainTarget = {
+          kind: domainRef.kind,
+          namespace: domainRef.namespace,
+          name: domainRef.name,
+        };
         emit(
           processingResult.relation({
             source: sourceRef,
-            target: {
-              kind: domainRef.kind,
-              namespace: domainRef.namespace,
-              name: domainRef.name,
-            },
+            target: domainTarget,
             type: RELATION_PART_OF,
+          }),
+        );
+        emit(
+          processingResult.relation({
+            source: domainTarget,
+            target: sourceRef,
+            type: RELATION_HAS_PART,
           }),
         );
       }
@@ -94,12 +102,6 @@ export class ComponentTypeEntityProcessor implements CatalogProcessor {
     _location: LocationSpec,
     _emit: CatalogProcessorEmit,
   ): Promise<ComponentTypeEntityV1alpha1> {
-    if (entity.kind === 'ComponentType' && entity.spec) {
-      if (!entity.spec.type) {
-        entity.spec.type = 'component-type';
-      }
-    }
-
     return entity;
   }
 
